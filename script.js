@@ -1,13 +1,5 @@
 // Firebase configuration
-const firebaseConfig = {
-    apiKey: "AIzaSyD123abc456def789ghi",
-    authDomain: "logstic-system.firebaseapp.com",
-    databaseURL: "https://logstic-system-default-rtdb.asia-southeast1.firebasedatabase.app",
-    projectId: "logstic-system",
-    storageBucket: "logstic-system.appspot.com",
-    messagingSenderId: "929186977018",
-    appId: "1:929186977018:web:342a2cf9454f03c8e0a543"
-};
+const firebaseConfig = {  apiKey: "AIzaSyCR6pogNfCUJSradGjPYIRc1_LJuDc2GoM",  authDomain: "logstic-system-5fcac.firebaseapp.com",  databaseURL: "https://logstic-system-5fcac-default-rtdb.asia-southeast1.firebasedatabase.app",  projectId: "logstic-system-5fcac",  storageBucket: "logstic-system-5fcac.firebasestorage.app",  messagingSenderId: "1048996922654",  appId: "1:1048996922654:web:9a2cc5abf5bfc43e68b50f"};
 
 // Initialize Firebase
 firebase.initializeApp(firebaseConfig);
@@ -17,26 +9,15 @@ const database = firebase.database();
 const ADMIN_USERNAME = "hanlwinoo";
 const ADMIN_PASSWORD = "1500love";
 
-// Global variables
-let currentTrackingNumber = '';
-
 // Check current page
 const currentPage = window.location.pathname.split("/").pop();
 
-// Check URL parameters for QR code tracking
-if (window.location.search.includes('track=')) {
-    const params = new URLSearchParams(window.location.search);
-    const trackingNumber = params.get('track');
-    const confirmationCode = params.get('code');
-    
-    if (trackingNumber && confirmationCode) {
-        // Auto-track from QR code
-        localStorage.setItem('autoTrack', JSON.stringify({ trackingNumber, confirmationCode }));
-    }
-}
+// Double click tracking for logo
+let logoClickCount = 0;
+let logoClickTimer;
 
 // Index Page Logic
-if (currentPage === "index.html" || currentPage === "" || currentPage.includes("index")) {
+if (currentPage === "index.html" || currentPage === "" || currentPage.includes("index") || currentPage === "track.html") {
     initializeIndexPage();
 }
 
@@ -46,7 +27,7 @@ if (currentPage === "admin.html" || currentPage.includes("admin")) {
 }
 
 function initializeIndexPage() {
-    console.log("Initializing Index Page with QR System...");
+    console.log("Initializing Index Page...");
     
     // DOM Elements
     const trackingNumberInput = document.getElementById('trackingNumber');
@@ -56,52 +37,39 @@ function initializeIndexPage() {
     const errorMessage = document.getElementById('errorMessage');
     const adminLogo = document.getElementById('adminLogo');
     const loginModal = document.getElementById('loginModal');
-    const qrModal = document.getElementById('qrModal');
-    const closeModal = document.querySelectorAll('.close');
+    const closeModal = document.querySelector('.close');
     const loginButton = document.getElementById('loginButton');
     const newSearchButton = document.getElementById('newSearchButton');
     const usernameInput = document.getElementById('username');
     const passwordInput = document.getElementById('password');
     const usernameError = document.getElementById('usernameError');
     const passwordError = document.getElementById('passwordError');
-    const downloadQRBtn = document.getElementById('downloadQRBtn');
 
-    // Double click handler for logo
-    let logoClickCount = 0;
-    let logoClickTimer;
-
-    if (adminLogo) {
-        adminLogo.addEventListener('click', function() {
-            logoClickCount++;
-            
-            if (logoClickCount === 1) {
-                logoClickTimer = setTimeout(() => {
-                    logoClickCount = 0;
-                }, 500);
-            } else if (logoClickCount === 2) {
-                clearTimeout(logoClickTimer);
-                logoClickCount = 0;
-                console.log("Logo double clicked, opening admin login...");
-                openLoginModal();
-            }
-        });
+    // Check if elements exist
+    if (!adminLogo) {
+        console.error("Admin logo element not found!");
+        return;
     }
 
-    // Check for auto-track from QR code
-    window.addEventListener('load', function() {
-        const autoTrack = localStorage.getItem('autoTrack');
-        if (autoTrack) {
-            const { trackingNumber, confirmationCode } = JSON.parse(autoTrack);
-            trackingNumberInput.value = trackingNumber;
-            confirmationCodeInput.value = confirmationCode;
-            trackShipment();
-            localStorage.removeItem('autoTrack');
-        }
+    // Double click handler for logo
+    adminLogo.addEventListener('click', handleLogoClick);
+
+    function handleLogoClick() {
+        logoClickCount++;
         
-        if (trackingNumberInput) {
-            trackingNumberInput.focus();
+        if (logoClickCount === 1) {
+            // First click - start timer
+            logoClickTimer = setTimeout(() => {
+                logoClickCount = 0; // Reset if not double clicked
+            }, 500); // 500ms window for double click
+        } else if (logoClickCount === 2) {
+            // Double clicked
+            clearTimeout(logoClickTimer);
+            logoClickCount = 0;
+            console.log("Logo double clicked, opening admin login...");
+            openLoginModal();
         }
-    });
+    }
 
     // Tracking function
     async function trackShipment() {
@@ -204,6 +172,7 @@ function initializeIndexPage() {
         const trackingHistory = shipment.trackingHistory || [];
         
         if (trackingHistory.length === 0) {
+            // Add default tracking entry
             const defaultItem = document.createElement('div');
             defaultItem.className = 'timeline-item';
             defaultItem.innerHTML = `
@@ -257,9 +226,8 @@ function initializeIndexPage() {
         setTimeout(() => usernameInput.focus(), 100);
     }
 
-    function closeAllModals() {
+    function closeLoginModal() {
         loginModal.style.display = 'none';
-        qrModal.style.display = 'none';
     }
 
     function loginToAdmin() {
@@ -286,83 +254,25 @@ function initializeIndexPage() {
         
         if (!hasError) {
             console.log("Login successful, redirecting to admin...");
+            // Set a flag in localStorage for admin access
             localStorage.setItem('sfAdminAuth', 'true');
+            // Redirect to admin page
             window.location.href = 'admin.html';
         } else {
             console.log("Login failed");
         }
     }
 
-    // QR Code functions
-    function generateQRCode(trackingNumber, confirmationCode) {
-        const websiteURL = window.location.origin + window.location.pathname;
-        const qrData = `${websiteURL}?track=${trackingNumber}&code=${confirmationCode}`;
-        
-        // Clear previous QR code
-        document.getElementById('qrcode').innerHTML = '';
-        
-        // Generate new QR code
-        QRCode.toCanvas(document.getElementById('qrcode'), qrData, {
-            width: 200,
-            height: 200,
-            margin: 1,
-            color: {
-                dark: '#000000',
-                light: '#FFFFFF'
-            }
-        }, function(error) {
-            if (error) {
-                console.error("QR Code generation error:", error);
-                alert("Error generating QR code. Please try again.");
-            }
-        });
-        
-        // Update tracking number display
-        document.getElementById('qrTrackingNumber').textContent = trackingNumber;
-        
-        // Set up download button
-        downloadQRBtn.onclick = function() {
-            downloadQRCode(trackingNumber);
-        };
-        
-        // Show modal
-        qrModal.style.display = 'block';
-    }
-
-    function downloadQRCode(trackingNumber) {
-        const canvas = document.querySelector('#qrcode canvas');
-        if (!canvas) {
-            alert("QR code not generated yet.");
-            return;
-        }
-        
-        const link = document.createElement('a');
-        link.download = `SF-Shipping-${trackingNumber}.png`;
-        link.href = canvas.toDataURL('image/png');
-        link.click();
-    }
-
-    // Event listeners
+    // Event listeners for index page
     if (trackButton) trackButton.addEventListener('click', trackShipment);
     if (newSearchButton) newSearchButton.addEventListener('click', newSearch);
+    if (closeModal) closeModal.addEventListener('click', closeLoginModal);
     if (loginButton) loginButton.addEventListener('click', loginToAdmin);
-    if (downloadQRBtn) {
-        downloadQRBtn.addEventListener('click', function() {
-            if (currentTrackingNumber) {
-                downloadQRCode(currentTrackingNumber);
-            }
-        });
-    }
-
-    // Close modal buttons
-    closeModal.forEach(btn => {
-        btn.addEventListener('click', closeAllModals);
-    });
 
     // Close modal when clicking outside
     window.addEventListener('click', (event) => {
-        if (event.target === loginModal || event.target === qrModal) {
-            closeAllModals();
+        if (event.target === loginModal) {
+            closeLoginModal();
         }
     });
 
@@ -383,12 +293,16 @@ function initializeIndexPage() {
         });
     }
 
-    // Make QR function globally available
-    window.generateQRCode = generateQRCode;
+    // Focus on tracking number when page loads
+    window.addEventListener('load', () => {
+        if (trackingNumberInput) {
+            trackingNumberInput.focus();
+        }
+    });
 }
 
 function initializeAdminPage() {
-    console.log("Initializing Admin Page with QR System...");
+    console.log("Initializing Admin Page...");
     
     // Check authentication FIRST
     checkAdminAuth();
@@ -402,6 +316,7 @@ function checkAdminAuth() {
     
     if (!isAuthenticated) {
         console.log("Not authenticated, redirecting to index...");
+        // Redirect to index page
         window.location.href = 'index.html';
         return false;
     }
@@ -519,12 +434,8 @@ function setupAdminPage() {
             // Clear form
             shippingForm.reset();
             
-            // Show success message with QR option
-            const showQR = confirm(`✅ Shipment added successfully!\n\n📦 Tracking Number: ${trackingNumber}\n🔑 Confirmation Code: ${confirmationCode}\n\nDo you want to generate QR code for this shipment?`);
-            
-            if (showQR) {
-                generateQRCodeForAdmin(trackingNumber, confirmationCode);
-            }
+            // Show success message
+            alert(`✅ Shipment added successfully!\n\n📦 Tracking Number: ${trackingNumber}\n🔑 Confirmation Code: ${confirmationCode}\n\nPlease provide these details to the customer.`);
             
             // Refresh table if we're on manage tab
             if (manageShippingTab.classList.contains('active')) {
@@ -606,17 +517,12 @@ function setupAdminPage() {
                     </td>
                     <td>${formatDate(shipment.createdAt)}</td>
                     <td>
-                        <div class="action-buttons">
-                            <button class="btn btn-primary btn-sm" onclick="showUpdateModal('${shipment.trackingNumber}')">
-                                <i class="fas fa-sync-alt"></i> Update
-                            </button>
-                            <button class="btn btn-success btn-sm" onclick="generateQRCodeForAdmin('${shipment.trackingNumber}', '${shipment.confirmationCode}')">
-                                <i class="fas fa-qrcode"></i> Generate QR
-                            </button>
-                            <button class="btn btn-danger btn-sm" onclick="deleteShipment('${shipment.trackingNumber}')">
-                                <i class="fas fa-trash"></i> Delete
-                            </button>
-                        </div>
+                        <button class="btn btn-primary btn-sm" onclick="showUpdateModal('${shipment.trackingNumber}')">
+                            <i class="fas fa-sync-alt"></i> Update
+                        </button>
+                        <button class="btn btn-danger btn-sm" onclick="deleteShipment('${shipment.trackingNumber}')" style="margin-top: 5px;">
+                            <i class="fas fa-trash"></i> Delete
+                        </button>
                     </td>
                 `;
                 shippingTableBody.appendChild(row);
@@ -661,88 +567,158 @@ function setupAdminPage() {
         return 'status-pending';
     }
 
-    // QR Code generation for admin
-    window.generateQRCodeForAdmin = function(trackingNumber, confirmationCode) {
-        const websiteURL = window.location.origin.replace('/admin.html', '/index.html');
-        const qrData = `${websiteURL}?track=${trackingNumber}&code=${confirmationCode}`;
+    // Show update modal
+    window.showUpdateModal = async function(trackingNumber) {
+        if (!trackingNumber) return;
         
-        // Create QR code modal
-        const modalHTML = `
-            <div id="adminQRModal" class="modal" style="display: block; z-index: 2000;">
-                <div class="modal-content" style="max-width: 450px;">
-                    <div class="modal-header">
-                        <h2><i class="fas fa-qrcode"></i> QR Code for ${trackingNumber}</h2>
-                        <span class="close" onclick="closeAdminQRModal()">&times;</span>
-                    </div>
-                    <div class="modal-body">
-                        <div class="qr-code-container">
-                            <div id="adminQRCode"></div>
-                            <div class="qr-info">
-                                <p><strong>Tracking Number:</strong> ${trackingNumber}</p>
-                                <p><strong>Confirmation Code:</strong> ${confirmationCode}</p>
-                                <p><strong>Scan Instructions:</strong> Customer can scan this QR code with any QR scanner app</p>
+        try {
+            const shipmentRef = database.ref('shipments/' + trackingNumber);
+            const snapshot = await shipmentRef.once('value');
+            const shipment = snapshot.val();
+            
+            if (!shipment) {
+                alert('Shipment not found!');
+                return;
+            }
+            
+            // Create update modal HTML
+            const modalHTML = `
+                <div id="updateModal" class="modal" style="display: block;">
+                    <div class="modal-content" style="max-width: 600px;">
+                        <div class="modal-header">
+                            <h2><i class="fas fa-edit"></i> Update Shipment: ${trackingNumber}</h2>
+                            <span class="close" onclick="closeUpdateModal()">&times;</span>
+                        </div>
+                        <div class="modal-body">
+                            <div class="form-group">
+                                <label for="updateStatus"><i class="fas fa-truck"></i> Status</label>
+                                <select id="updateStatus" class="form-control">
+                                    <option value="Pending Pickup" ${shipment.status === 'Pending Pickup' ? 'selected' : ''}>Pending Pickup</option>
+                                    <option value="Picked Up" ${shipment.status === 'Picked Up' ? 'selected' : ''}>Picked Up</option>
+                                    <option value="In Transit to Hub" ${shipment.status === 'In Transit to Hub' ? 'selected' : ''}>In Transit to Hub</option>
+                                    <option value="Arrived at Hub" ${shipment.status === 'Arrived at Hub' ? 'selected' : ''}>Arrived at Hub</option>
+                                    <option value="Arrived at Customs" ${shipment.status === 'Arrived at Customs' ? 'selected' : ''}>Arrived at Customs</option>
+                                    <option value="Customs Clearance in Progress" ${shipment.status === 'Customs Clearance in Progress' ? 'selected' : ''}>Customs Clearance in Progress</option>
+                                    <option value="Cleared Customs" ${shipment.status === 'Cleared Customs' ? 'selected' : ''}>Cleared Customs</option>
+                                    <option value="Departed from Hub" ${shipment.status === 'Departed from Hub' ? 'selected' : ''}>Departed from Hub</option>
+                                    <option value="In Transit to Destination" ${shipment.status === 'In Transit to Destination' ? 'selected' : ''}>In Transit to Destination</option>
+                                    <option value="Arrived at Destination Hub" ${shipment.status === 'Arrived at Destination Hub' ? 'selected' : ''}>Arrived at Destination Hub</option>
+                                    <option value="Out for Delivery" ${shipment.status === 'Out for Delivery' ? 'selected' : ''}>Out for Delivery</option>
+                                    <option value="Delivered" ${shipment.status === 'Delivered' ? 'selected' : ''}>Delivered</option>
+                                </select>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="updateLocation"><i class="fas fa-map-marker-alt"></i> Current Location</label>
+                                <input type="text" id="updateLocation" class="form-control" placeholder="Enter current location" value="${getDefaultLocation(shipment)}">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="updateDescription"><i class="fas fa-comment"></i> Update Description</label>
+                                <textarea id="updateDescription" class="form-control" rows="3" placeholder="Enter update description"></textarea>
+                            </div>
+                            
+                            <div class="form-actions" style="margin-top: 20px;">
+                                <button class="btn btn-primary" onclick="confirmUpdate('${trackingNumber}')">
+                                    <i class="fas fa-check"></i> OK - Update Shipment
+                                </button>
+                                <button class="btn btn-secondary" onclick="closeUpdateModal()">
+                                    <i class="fas fa-times"></i> Cancel
+                                </button>
                             </div>
                         </div>
-                        <div class="form-actions" style="display: flex; gap: 10px;">
-                            <button class="btn btn-primary" onclick="downloadAdminQRCode('${trackingNumber}')">
-                                <i class="fas fa-download"></i> Download QR
-                            </button>
-                            <button class="btn btn-secondary" onclick="closeAdminQRModal()">
-                                <i class="fas fa-times"></i> Close
-                            </button>
-                        </div>
-                        <p class="hint" style="text-align: center; margin-top: 15px; color: #666;">
-                            <i class="fas fa-info-circle"></i> When scanned, this QR code will automatically open the tracking page with pre-filled details
-                        </p>
                     </div>
                 </div>
-            </div>
-        `;
-        
-        // Add modal to page
-        document.body.insertAdjacentHTML('beforeend', modalHTML);
-        
-        // Generate QR code
-        setTimeout(() => {
-            QRCode.toCanvas(document.getElementById('adminQRCode'), qrData, {
-                width: 200,
-                height: 200,
-                margin: 1,
-                color: {
-                    dark: '#000000',
-                    light: '#FFFFFF'
-                }
-            });
-        }, 100);
-    };
+            `;
+            
+            // Add modal to page
+            document.body.insertAdjacentHTML('beforeend', modalHTML);
+            
+        } catch (error) {
+            console.error('Error showing update modal:', error);
+            alert('❌ Error loading shipment details.');
+        }
+    }
 
-    // Close admin QR modal
-    window.closeAdminQRModal = function() {
-        const modal = document.getElementById('adminQRModal');
+    function getDefaultLocation(shipment) {
+        const status = shipment.status || '';
+        if (status.includes('Customs')) return 'Customs Facility';
+        if (status === 'Delivered') return shipment.destination || 'Destination';
+        if (status.includes('Hub')) return 'Distribution Hub';
+        if (status.includes('Transit')) return 'In Transit';
+        if (status === 'Picked Up') return shipment.origin || 'Origin';
+        return shipment.origin || '';
+    }
+
+    // Close update modal
+    window.closeUpdateModal = function() {
+        const modal = document.getElementById('updateModal');
         if (modal) {
             modal.remove();
         }
-    };
+    }
 
-    // Download admin QR code
-    window.downloadAdminQRCode = function(trackingNumber) {
-        const canvas = document.querySelector('#adminQRCode canvas');
-        if (!canvas) {
-            alert("QR code not generated yet.");
-            return;
+    // Confirm update
+    window.confirmUpdate = async function(trackingNumber) {
+        try {
+            const status = document.getElementById('updateStatus').value;
+            const location = document.getElementById('updateLocation').value.trim();
+            const description = document.getElementById('updateDescription').value.trim();
+            
+            if (!location) {
+                alert('Please enter current location.');
+                return;
+            }
+            
+            if (!description) {
+                alert('Please enter update description.');
+                return;
+            }
+            
+            const shipmentRef = database.ref('shipments/' + trackingNumber);
+            const snapshot = await shipmentRef.once('value');
+            const shipment = snapshot.val();
+            
+            if (!shipment) {
+                alert('Shipment not found!');
+                return;
+            }
+            
+            // Add to tracking history
+            const newEvent = {
+                date: new Date().toLocaleDateString('en-US', { 
+                    year: 'numeric', 
+                    month: 'short', 
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                }),
+                description: description,
+                location: location
+            };
+            
+            const updatedData = {
+                status: status,
+                updatedAt: new Date().toISOString(),
+                trackingHistory: [...(shipment.trackingHistory || []), newEvent]
+            };
+            
+            await shipmentRef.update(updatedData);
+            
+            // Close modal
+            closeUpdateModal();
+            
+            // Show success message
+            alert(`✅ Shipment updated successfully!\n\nNew Status: ${status}\nLocation: ${location}\n\nThe customer will see this update in real-time.`);
+            
+            // Refresh the table
+            await loadShipments();
+            
+        } catch (error) {
+            console.error('Error updating shipment:', error);
+            alert('❌ Error updating shipment. Please try again.');
         }
-        
-        const link = document.createElement('a');
-        link.download = `SF-Shipping-${trackingNumber}-QR.png`;
-        link.href = canvas.toDataURL('image/png');
-        link.click();
-    };
-
-    // Update shipment status
-    window.showUpdateModal = async function(trackingNumber) {
-        // Existing update modal code (same as before)
-        // ... [keep your existing update modal code]
-    };
+    }
 
     // Delete shipment
     window.deleteShipment = async function(trackingNumber) {
@@ -764,7 +740,7 @@ function setupAdminPage() {
             console.error('Error deleting shipment:', error);
             alert('❌ Error deleting shipment. Please try again.');
         }
-    };
+    }
 
     // Tab switching
     addShippingTab.addEventListener('click', () => {
@@ -784,7 +760,9 @@ function setupAdminPage() {
 
     // Logout
     logoutBtn.addEventListener('click', () => {
+        // Clear authentication
         localStorage.removeItem('sfAdminAuth');
+        // Redirect to index page
         window.location.href = 'index.html';
     });
 
@@ -804,4 +782,4 @@ function setupAdminPage() {
             loadShipments();
         }
     }, 30000);
-          }
+                }
